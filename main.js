@@ -1,11 +1,14 @@
 const electron = require('electron');
 const express = require('express');
+const {createServer} = require('http');
+const { Server } = require('socket.io');
 // Module to control application life.
 const app = electron.app;
 const ipcMain = electron.ipcMain;
 // Module to create native browser window.
 const BrowserWindow = electron.BrowserWindow;
-const path = require('path')
+const path = require('path');
+const { randomUUID } = require('crypto');
 
 if (require('electron-squirrel-startup')) app.quit();
 
@@ -16,20 +19,52 @@ let mainWindow;
 
 function createWindow() {
     // Create the browser window.
-    mainWindow = new BrowserWindow({width: 800, height: 600});
+    mainWindow = new BrowserWindow({
+        width: 800, height: 600,
+        webPreferences: {
+            preload: path.join(__dirname, 'preload.js')
+        },
+    });
 
     // and load the index.html of the app.
     mainWindow.webContents.loadFile(path.join("server", "build", "index.html"))
 
     //Run Server
     mainWindow.webContents.once("did-finish-load", function () {
-        const server = express();
-        server.use(express.static(path.join(__dirname, 'client', 'build' )))
-        server.get("/", (req, res) => {
+        const expressApp = express();
+        const httpServer = createServer(expressApp)
+        expressApp.use(express.static(path.join(__dirname, 'client', 'build' )))
+        expressApp.get("/", (req, res) => {
             res.sendFile("index.html", {root: path.join(__dirname, 'client', 'build')});
          });
 
-        server.listen(8000, () => {
+         const io = new Server(httpServer, {
+            cors: {
+                origin: [path.join(__dirname, 'client', 'build')],
+                methods: ['GET', 'POST'],
+                allowedHeaders: [],
+                credentials: true
+              }
+          });
+
+        const clients = {};
+        // A new client connection request received
+        io.on("connection", (socket) => {
+            const userID = randomUUID();
+            clients[userID] = socket;
+            console.log(`User ${userID} connected`)
+
+            mainWindow.webContents.send('socket:connect', [userID])
+
+
+            socket.on("disconnect", () => {
+                console.log(`User ${userID} disconnected`)
+                mainWindow.webContents.send('socket:disconnect', [userID])
+                delete clients[userID];
+            })
+        });
+
+        httpServer.listen(8000, () => {
             console.log(`http://localhost:8000`);
          });
     });
