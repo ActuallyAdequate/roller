@@ -1,15 +1,19 @@
 import {useEffect} from 'react'
 import './App.css';
+import { DataSetSelect } from './components/DataSetSelect';
 
 function App() {
 
   useEffect(() => {
-    window.electron.socket.onConnect(([userID]) => {
-      console.log(`User ${userID} connected`);
-    })
-    window.electron.socket.onDisconnect(([userID]) => {
-      console.log(`User ${userID} disconnected`);
-    })
+    if(window.electron) {
+      window.electron.socket.onConnect(([userID]) => {
+        console.log(`User ${userID} connected`);
+      })
+      window.electron.socket.onDisconnect(([userID]) => {
+        console.log(`User ${userID} disconnected`);
+      })
+    }
+    
   }, [])
 
   return (
@@ -19,6 +23,7 @@ function App() {
         <p>
           Server
         </p>
+        <DataSetSelect/>
       </header>
     </div>
   );
